@@ -8,9 +8,7 @@ import (
 	"github.com/portalgun-io/qemu"
 )
 
-func main() {}
-
-func Example() {
+func main() {
 	params := make([]string, 0, 32)
 
 	// Rootfs
