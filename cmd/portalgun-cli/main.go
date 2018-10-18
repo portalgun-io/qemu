@@ -12,6 +12,7 @@ func main() {
 	params := make([]string, 0, 32)
 
 	// Rootfs
+	// TODO: If the QCOW2 image doesn't exit, we should create it
 	params = append(params, "-drive", "file=/tmp/image.qcow2,if=virtio,aio=threads,format=qcow2")
 	// Network
 	params = append(params, "-net", "nic,model=virtio", "-net", "user")
@@ -60,10 +61,6 @@ func main() {
 			panic(err)
 		}
 	}
-
 	q.Shutdown()
-
-	// disconnectedCh is closed when the VM exits. This line blocks until this
-	// event occurs.
 	<-disconnectedCh
 }
