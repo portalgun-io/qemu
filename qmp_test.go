@@ -218,12 +218,6 @@ func checkVersion(t *testing.T, connectedCh <-chan *QMPVersion) *QMPVersion {
 	return version
 }
 
-// Checks that a QMP Loop can be started and shutdown.
-//
-// We start a QMPLoop and shut it down.
-//
-// Loop should start up and shutdown correctly.  The version information
-// returned from startQMPLoop should be correct.
 func TestQMPStartStopLoop(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -235,11 +229,6 @@ func TestQMPStartStopLoop(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that a call to QMPStart with an invalid path exits gracefully.
-//
-// We call QMPStart with an invalid path.
-//
-// An error should be returned and the disconnected channel should be closed.
 func TestQMPStartBadPath(t *testing.T) {
 	cfg := QMPConfig{Logger: qmpTestLogger{}}
 	disconnectedCh := make(chan struct{})
@@ -251,13 +240,6 @@ func TestQMPStartBadPath(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the qmp_capabilities command is correctly sent.
-//
-// We start a QMPLoop, send the qmp_capabilities command and stop the
-// loop.
-//
-// The qmp_capabilities should be correctly sent and the QMP loop
-// should exit gracefully.
 func TestQMPCapabilities(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -274,12 +256,6 @@ func TestQMPCapabilities(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that an error returned by a QMP command is correctly handled.
-//
-// We start a QMPLoop, send the qmp_capabilities command and stop the
-// loop.
-//
-// The qmp_capabilities command fails and yet we should exit gracefully.
 func TestQMPBadCapabilities(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -296,13 +272,6 @@ func TestQMPBadCapabilities(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the stop command is correctly sent.
-//
-// We start a QMPLoop, send the stop command and stop the
-// loop.
-//
-// The stop command should be correctly sent and the QMP loop
-// should exit gracefully.
 func TestQMPStop(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -319,13 +288,6 @@ func TestQMPStop(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the cont command is correctly sent.
-//
-// We start a QMPLoop, send the cont command and stop the
-// loop.
-//
-// The cont command should be correctly sent and the QMP loop
-// should exit gracefully.
 func TestQMPCont(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -342,12 +304,6 @@ func TestQMPCont(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the quit command is correctly sent.
-//
-// We start a QMPLoop, send the quit command and wait for the loop to exit.
-//
-// The quit command should be correctly sent and the QMP loop should exit
-// gracefully without the test calling q.Shutdown().
 func TestQMPQuit(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -364,12 +320,6 @@ func TestQMPQuit(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the blockdev-add command is correctly sent.
-//
-// We start a QMPLoop, send the blockdev-add command and stop the loop.
-//
-// The blockdev-add command should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPBlockdevAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -387,12 +337,6 @@ func TestQMPBlockdevAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the netdev_add command is correctly sent.
-//
-// We start a QMPLoop, send the netdev_add command and stop the loop.
-//
-// The netdev_add command should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPNetdevAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -409,12 +353,6 @@ func TestQMPNetdevAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the netdev_add command is correctly sent.
-//
-// We start a QMPLoop, send the netdev_add command and stop the loop.
-//
-// The netdev_add command should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPNetdevChardevAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -431,12 +369,6 @@ func TestQMPNetdevChardevAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the netdev_add command with fds is correctly sent.
-//
-// We start a QMPLoop, send the netdev_add command with fds and stop the loop.
-//
-// The netdev_add command with fds should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPNetdevAddByFds(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -458,12 +390,6 @@ func TestQMPNetdevAddByFds(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the netdev_del command is correctly sent.
-//
-// We start a QMPLoop, send the netdev_del command and stop the loop.
-//
-// The netdev_del command should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPNetdevDel(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -496,12 +422,6 @@ func TestQMPNetPCIDeviceAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the device_add command is correctly sent.
-//
-// We start a QMPLoop, send the device_add command and stop the loop.
-//
-// The device_add command should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPDeviceAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -521,12 +441,6 @@ func TestQMPDeviceAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the device_add command for scsi is correctly sent.
-//
-// We start a QMPLoop, send the device_add command and stop the loop.
-//
-// The device_add command should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPSCSIDeviceAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -546,12 +460,6 @@ func TestQMPSCSIDeviceAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the x-blockdev-del command is correctly sent.
-//
-// We start a QMPLoop, send the x-blockdev-del command and stop the loop.
-//
-// The x-blockdev-del command should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPXBlockdevDel(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -569,14 +477,6 @@ func TestQMPXBlockdevDel(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the device_del command is correctly sent.
-//
-// We start a QMPLoop, send the device_del command and wait for it to complete.
-// This command generates some events so we start a separate go routine to check
-// that they are received.
-//
-// The device_del command should be correctly sent and the QMP loop should
-// exit gracefully.  We should also receive two events on the eventCh.
 func TestQMPDeviceDel(t *testing.T) {
 	const (
 		seconds         = 1352167040730
@@ -634,15 +534,6 @@ func TestQMPDeviceDel(t *testing.T) {
 	wg.Wait()
 }
 
-// Checks that contexts can be used to timeout a command.
-//
-// We start a QMPLoop and send the device_del command with a context that times
-// out after 1 second.  We don't however arrangefor any DEVICE_DELETED events
-// to be sent so the device_del command should not complete normally.  We then
-// shutdown the QMP loop.
-//
-// The device_del command should timeout after 1 second and the QMP loop
-// should exit gracefully.
 func TestQMPDeviceDelTimeout(t *testing.T) {
 	var wg sync.WaitGroup
 	connectedCh := make(chan *QMPVersion)
@@ -664,13 +555,6 @@ func TestQMPDeviceDelTimeout(t *testing.T) {
 	wg.Wait()
 }
 
-// Checks that contexts can be used to cancel a command.
-//
-// We start a QMPLoop and send two qmp_capabilities commands, cancelling
-// the first.  The second is allowed to proceed normally.
-//
-// The first call to ExecuteQMPCapabilities should fail with
-// context.Canceled.  The second should succeed.
 func TestQMPCancel(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -694,12 +578,6 @@ func TestQMPCancel(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that the system_powerdown command is correctly sent.
-//
-// We start a QMPLoop, send the system_powerdown command and stop the loop.
-//
-// The system_powerdown command should be correctly sent and should return
-// as we've provisioned a SHUTDOWN event.  The QMP loop should exit gracefully.
 func TestQMPSystemPowerdown(t *testing.T) {
 	const (
 		seconds         = 1352167040730
@@ -730,16 +608,6 @@ func TestQMPSystemPowerdown(t *testing.T) {
 	wg.Wait()
 }
 
-// Checks that event commands can be cancelled.
-//
-// We start a QMPLoop, send the system_powerdown command.  This command
-// will time out after 1 second as the SHUTDOWN event never arrives.
-// We then send a quit command to terminate the session.
-//
-// The system_powerdown command should be correctly sent but should block
-// waiting for the SHUTDOWN event and should be successfully cancelled.
-// The quit command should be successfully received and the QMP loop should
-// exit gracefully.
 func TestQMPEventedCommandCancel(t *testing.T) {
 	var wg sync.WaitGroup
 	connectedCh := make(chan *QMPVersion)
@@ -766,22 +634,6 @@ func TestQMPEventedCommandCancel(t *testing.T) {
 	wg.Wait()
 }
 
-// Checks that queued commands execute after an evented command is cancelled.
-//
-// This test is similar to the previous test with the exception that it
-// tries to ensure that a second command is placed on the QMP structure's
-// command queue before the evented command is cancelled.  This allows us
-// to test a slightly different use case. We start a QMPLoop, send the
-// system_powerdown command.  We do this by sending the command directly
-// down the QMP.cmdCh rather than calling a higher level function as this
-// allows us to ensure that we have another command queued before we
-// timeout the first command.  We then send a qmp_capabilities command and
-// then we shutdown.
-//
-// The system_powerdown command should be correctly sent but should block
-// waiting for the SHUTDOWN event and should be successfully cancelled.
-// The query_capabilities command should be successfully received and the
-// QMP loop should exit gracefully.
 func TestQMPEventedCommandCancelConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	connectedCh := make(chan *QMPVersion)
@@ -825,14 +677,6 @@ func TestQMPEventedCommandCancelConcurrent(t *testing.T) {
 	wg.Wait()
 }
 
-// Checks that events can be received and parsed.
-//
-// Two events are provisioned and the QMPLoop is started with an valid eventCh.
-// We wait for both events to be received and check that their contents are
-// correct.  We then shutdown the QMP loop.
-//
-// Both events are received and their contents are correct.  The QMP loop should
-// shut down gracefully.
 func TestQMPEvents(t *testing.T) {
 	const (
 		seconds         = 1352167040730
@@ -911,12 +755,6 @@ func TestQMPEvents(t *testing.T) {
 	wg.Wait()
 }
 
-// Checks that commands issued after the QMP loop exits fail (and don't hang)
-//
-// We start the QMP loop but force it to fail immediately simulating a QEMU
-// instance exit.  We then send two qmp_cabilities commands.
-//
-// Both commands should fail with an error.  The QMP loop should exit.
 func TestQMPLostLoop(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -939,12 +777,6 @@ func TestQMPLostLoop(t *testing.T) {
 	}
 }
 
-// Checks that PCI devices are correctly added using device_add.
-//
-// We start a QMPLoop, send the device_add command and stop the loop.
-//
-// The device_add command should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPPCIDeviceAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -964,12 +796,6 @@ func TestQMPPCIDeviceAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that PCI VFIO mediated devices are correctly added using device_add.
-//
-// We start a QMPLoop, send the device_add command and stop the loop.
-//
-// The device_add command should be correctly sent and the QMP loop should
-// exit gracefully.
 func TestQMPPCIVFIOMediatedDeviceAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -988,7 +814,6 @@ func TestQMPPCIVFIOMediatedDeviceAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that CPU are correctly added using device_add
 func TestQMPCPUDeviceAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1010,7 +835,6 @@ func TestQMPCPUDeviceAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that hotpluggable CPUs are listed correctly
 func TestQMPExecuteQueryHotpluggableCPUs(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1044,7 +868,6 @@ func TestQMPExecuteQueryHotpluggableCPUs(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that memory devices are listed correctly
 func TestQMPExecuteQueryMemoryDevices(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1080,7 +903,6 @@ func TestQMPExecuteQueryMemoryDevices(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that cpus are listed correctly
 func TestQMPExecuteQueryCpus(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1118,7 +940,6 @@ func TestQMPExecuteQueryCpus(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that cpus are listed correctly
 func TestQMPExecuteQueryCpusFast(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1154,7 +975,6 @@ func TestQMPExecuteQueryCpusFast(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that migrate capabilities can be set
 func TestExecSetMigrationCaps(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1177,7 +997,6 @@ func TestExecSetMigrationCaps(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks that migrate arguments can be set
 func TestExecSetMigrateArguments(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1194,7 +1013,6 @@ func TestExecSetMigrateArguments(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks hotplug memory
 func TestExecHotplugMemory(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1212,7 +1030,6 @@ func TestExecHotplugMemory(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks vsock-pci hotplug
 func TestExecutePCIVSockAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1229,7 +1046,6 @@ func TestExecutePCIVSockAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks getfd
 func TestExecuteGetFdD(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1246,7 +1062,6 @@ func TestExecuteGetFdD(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks chardev-add unix socket
 func TestExecuteCharDevUnixSocketAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1263,7 +1078,6 @@ func TestExecuteCharDevUnixSocketAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks virtio serial port hotplug
 func TestExecuteVirtSerialPortAdd(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1280,7 +1094,6 @@ func TestExecuteVirtSerialPortAdd(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks migration status
 func TestExecuteQueryMigration(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})
@@ -1330,7 +1143,6 @@ func TestExecuteQueryMigration(t *testing.T) {
 	<-disconnectedCh
 }
 
-// Checks balloon
 func TestExecuteBalloon(t *testing.T) {
 	connectedCh := make(chan *QMPVersion)
 	disconnectedCh := make(chan struct{})

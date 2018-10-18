@@ -38,18 +38,9 @@ func (l qmpNullLogger) Warningf(format string, v ...interface{}) {
 func (l qmpNullLogger) Errorf(format string, v ...interface{}) {
 }
 
-// QMPConfig is a configuration structure that can be used to specify a
-// logger and a channel to which logs and  QMP events are to be sent.  If
-// neither of these fields are specified, or are set to nil, no logs will be
-// written and no QMP events will be reported to the client.
 type QMPConfig struct {
-	// eventCh can be specified by clients who wish to receive QMP
-	// events.
 	EventCh chan<- QMPEvent
-
-	// logger is used by the qmpStart function and all the go routines
-	// it spawns to log information.
-	Logger QMPLog
+	Logger  QMPLog
 }
 
 type qmpEventFilter struct {
@@ -58,21 +49,9 @@ type qmpEventFilter struct {
 	dataValue string
 }
 
-// QMPEvent contains a single QMP event, sent on the QMPConfig.EventCh channel.
 type QMPEvent struct {
-	// The name of the event, e.g., DEVICE_DELETED
-	Name string
-
-	// The data associated with the event.  The contents of this map are
-	// unprocessed by the qemu package.  It is simply the result of
-	// unmarshalling the QMP json event.  Here's an example map
-	// map[string]interface{}{
-	//	"driver": "virtio-blk-pci",
-	//	"drive":  "drive_3437843748734873483",
-	// }
-	Data map[string]interface{}
-
-	// The event's timestamp converted to a time.Time object.
+	Name      string
+	Data      map[string]interface{}
 	Timestamp time.Time
 }
 
@@ -91,8 +70,6 @@ type qmpCommand struct {
 	oob            []byte
 }
 
-// QMP is a structure that contains the internal state used by startQMPLoop and
-// the go routines it spwans.  All the contents of this structure are private.
 type QMP struct {
 	cmdCh          chan qmpCommand
 	conn           io.ReadWriteCloser
@@ -102,8 +79,6 @@ type QMP struct {
 	version        *QMPVersion
 }
 
-// QMPVersion contains the version number and the capabailities of a QEMU
-// instance, as reported in the QMP greeting message.
 type QMPVersion struct {
 	Major        int
 	Minor        int
@@ -111,7 +86,6 @@ type QMPVersion struct {
 	Capabilities []string
 }
 
-// CPUProperties contains the properties of a CPU instance
 type CPUProperties struct {
 	Node   int `json:"node-id"`
 	Socket int `json:"socket-id"`
@@ -119,7 +93,6 @@ type CPUProperties struct {
 	Thread int `json:"thread-id"`
 }
 
-// HotpluggableCPU represents a hotpluggable CPU
 type HotpluggableCPU struct {
 	Type       string        `json:"type"`
 	VcpusCount int           `json:"vcpus-count"`
@@ -127,7 +100,6 @@ type HotpluggableCPU struct {
 	QOMPath    string        `json:"qom-path"`
 }
 
-// MemoryDevicesData cotains the data describes a memory device
 type MemoryDevicesData struct {
 	Slot         int    `json:"slot"`
 	Node         int    `json:"node"`
@@ -139,13 +111,11 @@ type MemoryDevicesData struct {
 	Size         uint64 `json:"size"`
 }
 
-// MemoryDevices represents memory devices of vm
 type MemoryDevices struct {
 	Data MemoryDevicesData `json:"data"`
 	Type string            `json:"type"`
 }
 
-// CPUInfo represents information about each virtual CPU
 type CPUInfo struct {
 	CPU      int           `json:"CPU"`
 	Current  bool          `json:"current"`
@@ -157,7 +127,6 @@ type CPUInfo struct {
 	Props    CPUProperties `json:"props"`
 }
 
-// CPUInfoFast represents information about each virtual CPU
 type CPUInfoFast struct {
 	CPUIndex int           `json:"cpu-index"`
 	QomPath  string        `json:"qom-path"`
@@ -167,7 +136,6 @@ type CPUInfoFast struct {
 	Props    CPUProperties `json:"props"`
 }
 
-// MigrationRAM represents migration ram status
 type MigrationRAM struct {
 	Total            int64 `json:"total"`
 	Remaining        int64 `json:"remaining"`
@@ -181,14 +149,12 @@ type MigrationRAM struct {
 	DirtySyncCount   int64 `json:"dirty-sync-count"`
 }
 
-// MigrationDisk represents migration disk status
 type MigrationDisk struct {
 	Total       int64 `json:"total"`
 	Remaining   int64 `json:"remaining"`
 	Transferred int64 `json:"transferred"`
 }
 
-// MigrationXbzrleCache represents migration XbzrleCache status
 type MigrationXbzrleCache struct {
 	CacheSize     int64 `json:"cache-size"`
 	Bytes         int64 `json:"bytes"`
@@ -198,7 +164,6 @@ type MigrationXbzrleCache struct {
 	Overflow      int64 `json:"overflow"`
 }
 
-// MigrationStatus represents migration status of a vm
 type MigrationStatus struct {
 	Status       string                   `json:"status"`
 	Capabilities []map[string]interface{} `json:"capabilities,omitempty"`
@@ -423,39 +388,6 @@ func (q *QMP) parseVersion(version []byte) *QMPVersion {
 	}
 }
 
-// The qemu package allows multiple QMP commands to be submitted concurrently
-// from different Go routines.  Unfortunately, QMP doesn't really support parallel
-// commands as there is no way reliable way to associate a command response
-// with a request.  For this reason we need to submit our commands to
-// QMP serially.  The qemu package performs this serialisation using a
-// queue (cmdQueue owned by mainLoop).  We use a queue rather than a simple
-// mutex so we can support cancelling of commands (see below) and ordered
-// execution of commands, i.e., if command B is issued before command C,
-// it should be executed before command C even if both commands are initially
-// blocked waiting for command A to finish.  This would be hard to achieve with
-// a simple mutex.
-//
-// Cancelling is a little tricky.  Commands such as ExecuteQMPCapabilities
-// can be cancelled by cancelling or timing out their contexts.  When a
-// command is cancelled the calling function, e.g., ExecuteQMPCapabilities,
-// will return but we may not be able to remove the command's entry from
-// the command queue or issue the next command.  There are two scenarios
-// here.
-//
-// 1. The command has been processed by QMP, i.e., we have received a
-// return or an error, but is still blocking as it is waiting for
-// an event.  For example, the ExecuteDeviceDel blocks until a DEVICE_DELETED
-// event is received.  When such a command is cancelled we can remove it
-// from the queue and start issuing the next command.  When the DEVICE_DELETED
-// event eventually arrives it will just be ignored.
-//
-// 2. The command has not been processed by QMP.  In this case the command
-// needs to remain on the cmdQueue until the response to this command is
-// received from QMP.  During this time no new commands can be issued.  When the
-// response is received, it is discarded (as no one is interested in the result
-// any more), the entry is removed from the cmdQueue and we can proceed to
-// execute the next command.
-
 func (q *QMP) mainLoop() {
 	cmdQueue := list.New().Init()
 	fromVMCh := make(chan []byte)
@@ -465,7 +397,6 @@ func (q *QMP) mainLoop() {
 		if q.cfg.EventCh != nil {
 			close(q.cfg.EventCh)
 		}
-		/* #nosec */
 		_ = q.conn.Close()
 		_ = <-fromVMCh
 		failOutstandingCommands(cmdQueue)
@@ -505,12 +436,6 @@ DONE:
 				return
 			}
 			_ = cmdQueue.PushBack(&cmd)
-
-			// We only want to execute the new cmd if there
-			// are no other commands pending.  If there are
-			// commands pending our new command will get
-			// run when the pending commands complete.
-
 			if cmdQueue.Len() == 1 {
 				q.writeNextQMPCommand(cmdQueue)
 				cmdDoneCh = currentCommandDoneCh(cmdQueue)
@@ -581,37 +506,6 @@ func (q *QMP) executeCommand(ctx context.Context, name string, args map[string]i
 	return err
 }
 
-// QMPStart connects to a unix domain socket maintained by a QMP instance.  It
-// waits to receive the QMP welcome message via the socket and spawns some go
-// routines to manage the socket.  The function returns a *QMP which can be
-// used by callers to send commands to the QEMU instance or to close the
-// socket and all the go routines that have been spawned to monitor it.  A
-// *QMPVersion is also returned.  This structure contains the version and
-// capabilities information returned by the QEMU instance in its welcome
-// message.
-//
-// socket contains the path to the domain socket. cfg contains some options
-// that can be specified by the caller, namely where the qemu package should
-// send logs and QMP events.  disconnectedCh is a channel that must be supplied
-// by the caller.  It is closed when an error occurs openning or writing to
-// or reading from the unix domain socket.  This implies that the QEMU instance
-// that opened the socket has closed.
-//
-// If this function returns without error, callers should call QMP.Shutdown
-// when they wish to stop monitoring the QMP instance.  This is not strictly
-// necessary if the QEMU instance exits and the disconnectedCh is closed, but
-// doing so will not cause any problems.
-//
-// Commands can be sent to the QEMU instance via the QMP.Execute methods.
-// These commands are executed serially, even if the QMP.Execute methods
-// are called from different go routines.  The QMP.Execute methods will
-// block until they have received a success or failure message from QMP,
-// i.e., {"return": {}} or {"error":{}}, and in some cases certain events
-// are received.
-//
-// QEMU currently requires that the "qmp_capabilties" command is sent before any
-// other command. Therefore you must call qmp.ExecuteQMPCapabilities() before
-// you execute any other command.
 func QMPStart(ctx context.Context, socket string, cfg QMPConfig, disconnectedCh chan struct{}) (*QMP, *QMPVersion, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = qmpNullLogger{}
@@ -643,39 +537,22 @@ func QMPStart(ctx context.Context, socket string, cfg QMPConfig, disconnectedCh 
 	return q, q.version, nil
 }
 
-// Shutdown closes the domain socket used to monitor a QEMU instance and
-// terminates all the go routines spawned by QMPStart to manage that instance.
-// QMP.Shutdown does not shut down the running instance.  Calling QMP.Shutdown
-// will result in the disconnectedCh channel being closed, indicating that we
-// have lost connection to the QMP instance.  In this case it does not indicate
-// that the instance has quit.
-//
-// QMP.Shutdown should not be called concurrently with other QMP methods.  It
-// should not be called twice on the same QMP instance.
-//
-// Calling QMP.Shutdown after the disconnectedCh channel is closed is permitted but
-// will not have any effect.
 func (q *QMP) Shutdown() {
 	close(q.cmdCh)
 }
 
-// ExecuteQMPCapabilities executes the qmp_capabilities command on the instance.
 func (q *QMP) ExecuteQMPCapabilities(ctx context.Context) error {
 	return q.executeCommand(ctx, "qmp_capabilities", nil, nil)
 }
 
-// ExecuteStop sends the stop command to the instance.
 func (q *QMP) ExecuteStop(ctx context.Context) error {
 	return q.executeCommand(ctx, "stop", nil, nil)
 }
 
-// ExecuteCont sends the cont command to the instance.
 func (q *QMP) ExecuteCont(ctx context.Context) error {
 	return q.executeCommand(ctx, "cont", nil, nil)
 }
 
-// ExecuteSystemPowerdown sends the system_powerdown command to the instance.
-// This function will block until the SHUTDOWN event is received.
 func (q *QMP) ExecuteSystemPowerdown(ctx context.Context) error {
 	filter := &qmpEventFilter{
 		eventName: "SHUTDOWN",
@@ -683,16 +560,10 @@ func (q *QMP) ExecuteSystemPowerdown(ctx context.Context) error {
 	return q.executeCommand(ctx, "system_powerdown", nil, filter)
 }
 
-// ExecuteQuit sends the quit command to the instance, terminating
-// the QMP instance immediately.
 func (q *QMP) ExecuteQuit(ctx context.Context) error {
 	return q.executeCommand(ctx, "quit", nil, nil)
 }
 
-// ExecuteBlockdevAdd sends a blockdev-add to the QEMU instance.  device is the
-// path of the device to add, e.g., /dev/rdb0, and blockdevID is an identifier
-// used to name the device.  As this identifier will be passed directly to QMP,
-// it must obey QMP's naming rules, e,g., it must start with a letter.
 func (q *QMP) ExecuteBlockdevAdd(ctx context.Context, device, blockdevID string) error {
 	var args map[string]interface{}
 
@@ -717,12 +588,6 @@ func (q *QMP) ExecuteBlockdevAdd(ctx context.Context, device, blockdevID string)
 	return q.executeCommand(ctx, "blockdev-add", args, nil)
 }
 
-// ExecuteDeviceAdd adds the guest portion of a device to a QEMU instance
-// using the device_add command.  blockdevID should match the blockdevID passed
-// to a previous call to ExecuteBlockdevAdd.  devID is the id of the device to
-// add.  Both strings must be valid QMP identifiers.  driver is the name of the
-// driver,e.g., virtio-blk-pci, and bus is the name of the bus.  bus is optional.
-// shared denotes if the drive can be shared allowing it to be passed more than once.
 func (q *QMP) ExecuteDeviceAdd(ctx context.Context, blockdevID, devID, driver, bus, romfile string, shared bool) error {
 	args := map[string]interface{}{
 		"id":     devID,
@@ -742,18 +607,8 @@ func (q *QMP) ExecuteDeviceAdd(ctx context.Context, blockdevID, devID, driver, b
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecuteSCSIDeviceAdd adds the guest portion of a block device to a QEMU instance
-// using a SCSI driver with the device_add command.  blockdevID should match the
-// blockdevID passed to a previous call to ExecuteBlockdevAdd.  devID is the id of
-// the device to add.  Both strings must be valid QMP identifiers.  driver is the name of the
-// scsi driver,e.g., scsi-hd, and bus is the name of a SCSI controller bus.
-// scsiID is the SCSI id, lun is logical unit number. scsiID and lun are optional, a negative value
-// for scsiID and lun is ignored. shared denotes if the drive can be shared allowing it
-// to be passed more than once.
 func (q *QMP) ExecuteSCSIDeviceAdd(ctx context.Context, blockdevID, devID, driver, bus, romfile string, scsiID, lun int, shared bool) error {
-	// TBD: Add drivers for scsi passthrough like scsi-generic and scsi-block
 	drivers := []string{"scsi-hd", "scsi-cd", "scsi-disk"}
-
 	isSCSIDriver := false
 	for _, d := range drivers {
 		if driver == d {
@@ -788,10 +643,6 @@ func (q *QMP) ExecuteSCSIDeviceAdd(ctx context.Context, blockdevID, devID, drive
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecuteBlockdevDel deletes a block device by sending a x-blockdev-del command
-// for qemu versions < 2.9. It sends the updated blockdev-del command for qemu>=2.9.
-// blockdevID is the id of the block device to be deleted.  Typically, this will
-// match the id passed to ExecuteBlockdevAdd.  It must be a valid QMP id.
 func (q *QMP) ExecuteBlockdevDel(ctx context.Context, blockdevID string) error {
 	args := map[string]interface{}{}
 
@@ -809,9 +660,6 @@ func (q *QMP) ExecuteBlockdevDel(ctx context.Context, blockdevID string) error {
 	return q.executeCommand(ctx, "x-blockdev-del", args, nil)
 }
 
-// ExecuteNetdevAdd adds a Net device to a QEMU instance
-// using the netdev_add command. netdevID is the id of the device to add.
-// Must be valid QMP identifier.
 func (q *QMP) ExecuteNetdevAdd(ctx context.Context, netdevType, netdevID, ifname, downscript, script string, queues int) error {
 	args := map[string]interface{}{
 		"type":       netdevType,
@@ -827,9 +675,6 @@ func (q *QMP) ExecuteNetdevAdd(ctx context.Context, netdevType, netdevID, ifname
 	return q.executeCommand(ctx, "netdev_add", args, nil)
 }
 
-// ExecuteNetdevChardevAdd adds a Net device to a QEMU instance
-// using the netdev_add command. netdevID is the id of the device to add.
-// Must be valid QMP identifier.
 func (q *QMP) ExecuteNetdevChardevAdd(ctx context.Context, netdevType, netdevID, chardev string, queues int) error {
 	args := map[string]interface{}{
 		"type":    netdevType,
@@ -843,9 +688,6 @@ func (q *QMP) ExecuteNetdevChardevAdd(ctx context.Context, netdevType, netdevID,
 	return q.executeCommand(ctx, "netdev_add", args, nil)
 }
 
-// ExecuteNetdevAddByFds adds a Net device to a QEMU instance
-// using the netdev_add command by fds and vhostfds. netdevID is the id of the device to add.
-// Must be valid QMP identifier.
 func (q *QMP) ExecuteNetdevAddByFds(ctx context.Context, netdevType, netdevID string, fdNames, vhostFdNames []string) error {
 	fdNameStr := strings.Join(fdNames, ":")
 	args := map[string]interface{}{
@@ -862,8 +704,6 @@ func (q *QMP) ExecuteNetdevAddByFds(ctx context.Context, netdevType, netdevID st
 	return q.executeCommand(ctx, "netdev_add", args, nil)
 }
 
-// ExecuteNetdevDel deletes a Net device from a QEMU instance
-// using the netdev_del command. netdevID is the id of the device to delete.
 func (q *QMP) ExecuteNetdevDel(ctx context.Context, netdevID string) error {
 	args := map[string]interface{}{
 		"id": netdevID,
@@ -871,10 +711,6 @@ func (q *QMP) ExecuteNetdevDel(ctx context.Context, netdevID string) error {
 	return q.executeCommand(ctx, "netdev_del", args, nil)
 }
 
-// ExecuteNetPCIDeviceAdd adds a Net PCI device to a QEMU instance
-// using the device_add command. devID is the id of the device to add.
-// Must be valid QMP identifier. netdevID is the id of nic added by previous netdev_add.
-// queues is the number of queues of a nic.
 func (q *QMP) ExecuteNetPCIDeviceAdd(ctx context.Context, netdevID, devID, macAddr, addr, bus, romfile string, queues int) error {
 	args := map[string]interface{}{
 		"id":      devID,
@@ -896,12 +732,6 @@ func (q *QMP) ExecuteNetPCIDeviceAdd(ctx context.Context, netdevID, devID, macAd
 	}
 
 	if queues > 0 {
-		// (2N+2 vectors, N for tx queues, N for rx queues, 1 for config, and one for possible control vq)
-		// -device virtio-net-pci,mq=on,vectors=2N+2...
-		// enable mq in guest by 'ethtool -L eth0 combined $queue_num'
-		// Clearlinux automatically sets up the queues properly
-		// The agent implementation should do this to ensure that it is
-		// always set
 		args["mq"] = "on"
 		args["vectors"] = 2*queues + 2
 	}
@@ -909,12 +739,6 @@ func (q *QMP) ExecuteNetPCIDeviceAdd(ctx context.Context, netdevID, devID, macAd
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecuteDeviceDel deletes guest portion of a QEMU device by sending a
-// device_del command.   devId is the identifier of the device to delete.
-// Typically it would match the devID parameter passed to an earlier call
-// to ExecuteDeviceAdd.  It must be a valid QMP identidier.
-//
-// This method blocks until a DEVICE_DELETED event is received for devID.
 func (q *QMP) ExecuteDeviceDel(ctx context.Context, devID string) error {
 	args := map[string]interface{}{
 		"id": devID,
@@ -927,10 +751,6 @@ func (q *QMP) ExecuteDeviceDel(ctx context.Context, devID string) error {
 	return q.executeCommand(ctx, "device_del", args, filter)
 }
 
-// ExecutePCIDeviceAdd is the PCI version of ExecuteDeviceAdd. This function can be used
-// to hot plug PCI devices on PCI(E) bridges, unlike ExecuteDeviceAdd this function receive the
-// device address on its parent bus. bus is optional. shared denotes if the drive can be shared
-// allowing it to be passed more than once.
 func (q *QMP) ExecutePCIDeviceAdd(ctx context.Context, blockdevID, devID, driver, addr, bus, romfile string, shared bool) error {
 	args := map[string]interface{}{
 		"id":     devID,
@@ -951,10 +771,6 @@ func (q *QMP) ExecutePCIDeviceAdd(ctx context.Context, blockdevID, devID, driver
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecuteVFIODeviceAdd adds a VFIO device to a QEMU instance
-// using the device_add command. devID is the id of the device to add.
-// Must be valid QMP identifier. bdf is the PCI bus-device-function
-// of the pci device.
 func (q *QMP) ExecuteVFIODeviceAdd(ctx context.Context, devID, bdf, romfile string) error {
 	args := map[string]interface{}{
 		"id":      devID,
@@ -965,11 +781,6 @@ func (q *QMP) ExecuteVFIODeviceAdd(ctx context.Context, devID, bdf, romfile stri
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecutePCIVFIODeviceAdd adds a VFIO device to a QEMU instance using the device_add command.
-// This function can be used to hot plug VFIO devices on PCI(E) bridges, unlike
-// ExecuteVFIODeviceAdd this function receives the bus and the device address on its parent bus.
-// bus is optional. devID is the id of the device to add.Must be valid QMP identifier. bdf is the
-// PCI bus-device-function of the pci device.
 func (q *QMP) ExecutePCIVFIODeviceAdd(ctx context.Context, devID, bdf, addr, bus, romfile string) error {
 	args := map[string]interface{}{
 		"id":      devID,
@@ -984,11 +795,6 @@ func (q *QMP) ExecutePCIVFIODeviceAdd(ctx context.Context, devID, bdf, addr, bus
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecutePCIVFIOMediatedDeviceAdd adds a VFIO mediated device to a QEMU instance using the device_add command.
-// This function can be used to hot plug VFIO mediated devices on PCI(E) bridges or root bus, unlike
-// ExecuteVFIODeviceAdd this function receives the bus and the device address on its parent bus.
-// devID is the id of the device to add. Must be valid QMP identifier. sysfsdev is the VFIO mediated device.
-// Both bus and addr are optional. If they are both set to be empty, the system will pick up an empty slot on root bus.
 func (q *QMP) ExecutePCIVFIOMediatedDeviceAdd(ctx context.Context, devID, sysfsdev, addr, bus, romfile string) error {
 	args := map[string]interface{}{
 		"id":       devID,
@@ -1005,10 +811,6 @@ func (q *QMP) ExecutePCIVFIOMediatedDeviceAdd(ctx context.Context, devID, sysfsd
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecuteCPUDeviceAdd adds a CPU to a QEMU instance using the device_add command.
-// driver is the CPU model, cpuID must be a unique ID to identify the CPU, socketID is the socket number within
-// node/board the CPU belongs to, coreID is the core number within socket the CPU belongs to, threadID is the
-// thread number within core the CPU belongs to.
 func (q *QMP) ExecuteCPUDeviceAdd(ctx context.Context, driver, cpuID, socketID, coreID, threadID, romfile string) error {
 	args := map[string]interface{}{
 		"driver":    driver,
@@ -1025,21 +827,18 @@ func (q *QMP) ExecuteCPUDeviceAdd(ctx context.Context, driver, cpuID, socketID, 
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecuteQueryHotpluggableCPUs returns a slice with the list of hotpluggable CPUs
 func (q *QMP) ExecuteQueryHotpluggableCPUs(ctx context.Context) ([]HotpluggableCPU, error) {
 	response, err := q.executeCommandWithResponse(ctx, "query-hotpluggable-cpus", nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// convert response to json
 	data, err := json.Marshal(response)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to extract CPU information: %v", err)
 	}
 
 	var cpus []HotpluggableCPU
-	// convert json to []HotpluggableCPU
 	if err = json.Unmarshal(data, &cpus); err != nil {
 		return nil, fmt.Errorf("Unable to convert json to hotpluggable CPU: %v", err)
 	}
@@ -1047,7 +846,6 @@ func (q *QMP) ExecuteQueryHotpluggableCPUs(ctx context.Context) ([]HotpluggableC
 	return cpus, nil
 }
 
-// ExecSetMigrationCaps sets migration capabilities
 func (q *QMP) ExecSetMigrationCaps(ctx context.Context, caps []map[string]interface{}) error {
 	args := map[string]interface{}{
 		"capabilities": caps,
@@ -1056,7 +854,6 @@ func (q *QMP) ExecSetMigrationCaps(ctx context.Context, caps []map[string]interf
 	return q.executeCommand(ctx, "migrate-set-capabilities", args, nil)
 }
 
-// ExecSetMigrateArguments sets the command line used for migration
 func (q *QMP) ExecSetMigrateArguments(ctx context.Context, url string) error {
 	args := map[string]interface{}{
 		"uri": url,
@@ -1065,21 +862,17 @@ func (q *QMP) ExecSetMigrateArguments(ctx context.Context, url string) error {
 	return q.executeCommand(ctx, "migrate", args, nil)
 }
 
-// ExecQueryMemoryDevices returns a slice with the list of memory devices
 func (q *QMP) ExecQueryMemoryDevices(ctx context.Context) ([]MemoryDevices, error) {
 	response, err := q.executeCommandWithResponse(ctx, "query-memory-devices", nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	// convert response to json
 	data, err := json.Marshal(response)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to extract memory devices information: %v", err)
 	}
 
 	var memoryDevices []MemoryDevices
-	// convert json to []MemoryDevices
 	if err = json.Unmarshal(data, &memoryDevices); err != nil {
 		return nil, fmt.Errorf("unable to convert json to memory devices: %v", err)
 	}
@@ -1087,23 +880,18 @@ func (q *QMP) ExecQueryMemoryDevices(ctx context.Context) ([]MemoryDevices, erro
 	return memoryDevices, nil
 }
 
-// ExecQueryCpus returns a slice with the list of `CpuInfo`
-// Since qemu 2.12, we have `query-cpus-fast` as a better choice in production
-// we can still choose `ExecQueryCpus` for compatibility though not recommended.
 func (q *QMP) ExecQueryCpus(ctx context.Context) ([]CPUInfo, error) {
 	response, err := q.executeCommandWithResponse(ctx, "query-cpus", nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// convert response to json
 	data, err := json.Marshal(response)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to extract memory devices information: %v", err)
 	}
 
 	var cpuInfo []CPUInfo
-	// convert json to []CPUInfo
 	if err = json.Unmarshal(data, &cpuInfo); err != nil {
 		return nil, fmt.Errorf("unable to convert json to CPUInfo: %v", err)
 	}
@@ -1111,23 +899,17 @@ func (q *QMP) ExecQueryCpus(ctx context.Context) ([]CPUInfo, error) {
 	return cpuInfo, nil
 }
 
-// ExecQueryCpusFast returns a slice with the list of `CpuInfoFast`
-// This is introduced since 2.12, it does not incur a performance penalty and
-// should be used in production instead of query-cpus.
 func (q *QMP) ExecQueryCpusFast(ctx context.Context) ([]CPUInfoFast, error) {
 	response, err := q.executeCommandWithResponse(ctx, "query-cpus-fast", nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	// convert response to json
 	data, err := json.Marshal(response)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to extract memory devices information: %v", err)
 	}
 
 	var cpuInfoFast []CPUInfoFast
-	// convert json to []CPUInfoFast
 	if err = json.Unmarshal(data, &cpuInfoFast); err != nil {
 		return nil, fmt.Errorf("unable to convert json to CPUInfoFast: %v", err)
 	}
@@ -1135,7 +917,6 @@ func (q *QMP) ExecQueryCpusFast(ctx context.Context) ([]CPUInfoFast, error) {
 	return cpuInfoFast, nil
 }
 
-// ExecHotplugMemory adds size of MiB memory to the guest
 func (q *QMP) ExecHotplugMemory(ctx context.Context, qomtype, id, mempath string, size int) error {
 	args := map[string]interface{}{
 		"qom-type": qomtype,
@@ -1170,8 +951,6 @@ func (q *QMP) ExecHotplugMemory(ctx context.Context, qomtype, id, mempath string
 	return err
 }
 
-// ExecuteBalloon sets the size of the balloon, hence updates the memory
-// allocated for the VM.
 func (q *QMP) ExecuteBalloon(ctx context.Context, bytes uint64) error {
 	args := map[string]interface{}{
 		"value": bytes,
@@ -1179,7 +958,6 @@ func (q *QMP) ExecuteBalloon(ctx context.Context, bytes uint64) error {
 	return q.executeCommand(ctx, "balloon", args, nil)
 }
 
-// ExecutePCIVSockAdd adds a vhost-vsock-pci bus
 func (q *QMP) ExecutePCIVSockAdd(ctx context.Context, id, guestCID, vhostfd, addr, bus, romfile string, disableModern bool) error {
 	args := map[string]interface{}{
 		"driver":    VHostVSockPCI,
@@ -1201,7 +979,6 @@ func (q *QMP) ExecutePCIVSockAdd(ctx context.Context, id, guestCID, vhostfd, add
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecuteGetFD sends a file descriptor via SCM rights and assigns it a name
 func (q *QMP) ExecuteGetFD(ctx context.Context, fdname string, fd *os.File) error {
 	oob := syscall.UnixRights(int(fd.Fd()))
 	args := map[string]interface{}{
@@ -1212,9 +989,6 @@ func (q *QMP) ExecuteGetFD(ctx context.Context, fdname string, fd *os.File) erro
 	return err
 }
 
-// ExecuteCharDevUnixSocketAdd adds a character device using as backend a unix socket,
-// id is an identifier for the device, path specifies the local path of the unix socket,
-// wait is to block waiting for a client to connect, server specifies that the socket is a listening socket.
 func (q *QMP) ExecuteCharDevUnixSocketAdd(ctx context.Context, id, path string, wait, server bool) error {
 	args := map[string]interface{}{
 		"id": id,
@@ -1235,9 +1009,6 @@ func (q *QMP) ExecuteCharDevUnixSocketAdd(ctx context.Context, id, path string, 
 	return q.executeCommand(ctx, "chardev-add", args, nil)
 }
 
-// ExecuteVirtSerialPortAdd adds a virtserialport.
-// id is an identifier for the virtserialport, name is a name for the virtserialport and
-// it will be visible in the VM, chardev is the character device id previously added.
 func (q *QMP) ExecuteVirtSerialPortAdd(ctx context.Context, id, name, chardev string) error {
 	args := map[string]interface{}{
 		"driver":  VirtioSerialPort,
@@ -1249,7 +1020,6 @@ func (q *QMP) ExecuteVirtSerialPortAdd(ctx context.Context, id, name, chardev st
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
-// ExecuteQueryMigration queries migration progress.
 func (q *QMP) ExecuteQueryMigration(ctx context.Context) (MigrationStatus, error) {
 	response, err := q.executeCommandWithResponse(ctx, "query-migrate", nil, nil, nil)
 	if err != nil {
